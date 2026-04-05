@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stock Data Intelligence Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3250;
+      --text: #e2e8f0;
+      --text-muted: #8892a4;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --green: #22c55e;
+      --green-bg: rgba(34,197,94,0.08);
+      --red: #ef4444;
+      --red-bg: rgba(239,68,68,0.08);
+      --orange: #f97316;
+      --radius: 8px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      display: flex;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    #sidebar {
+      width: 220px;
+      min-width: 220px;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #sidebar-header {
+      padding: 18px 16px 12px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border);
+    }
+
+    #company-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 0;
+    }
+
+    #company-list::-webkit-scrollbar { width: 4px; }
+    #company-list::-webkit-scrollbar-track { background: transparent; }
+    #company-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .company-item {
+      padding: 10px 16px;
+      cursor: pointer;
+      border-left: 3px solid transparent;
+      transition: background 0.15s, border-color 0.15s;
+      font-weight: 500;
+      color: var(--text-muted);
+    }
+
+    .company-item:hover {
+      background: var(--surface2);
+      color: var(--text);
+    }
+
+    .company-item.active {
+      background: rgba(59,130,246,0.12);
+      border-left-color: var(--accent);
+      color: var(--text);
+    }
+
+    /* ── Main ── */
+    #main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    #topbar {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-shrink: 0;
+    }
+
+    #live-indicator {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .live-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+      box-shadow: 0 0 6px #22c55e, 0 0 12px rgba(34,197,94,0.4);
+      animation: livepulse 1.8s ease-in-out infinite;
+    }
+
+    @keyframes livepulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 6px #22c55e, 0 0 12px rgba(34,197,94,0.4); }
+      50%       { opacity: 0.35; box-shadow: none; }
+    }
+
+    #app-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--text);
+      white-space: nowrap;
+    }
+
+    #selected-symbol {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    #content {
+      flex: 1;
+      overflow-y: auto;
+      padding: 20px 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    #content::-webkit-scrollbar { width: 6px; }
+    #content::-webkit-scrollbar-track { background: transparent; }
+    #content::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+    }
+
+    .card-title {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    /* ── Filter buttons ── */
+    #filter-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .filter-label {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-right: 4px;
+    }
+
+    .filter-btn {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 5px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 500;
+      transition: all 0.15s;
+    }
+
+    .filter-btn:hover {
+      background: var(--border);
+      color: var(--text);
+    }
+
+    .filter-btn.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: #fff;
+    }
+
+    /* ── Chart ── */
+    #chart-container {
+      position: relative;
+      height: 300px;
+    }
+
+    /* ── Compare section ── */
+    #compare-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .compare-select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 6px 10px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      min-width: 120px;
+    }
+
+    .compare-select:focus { outline: none; border-color: var(--accent); }
+
+    #compare-btn {
+      background: var(--accent);
+      border: none;
+      color: #fff;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: background 0.15s;
+    }
+
+    #compare-btn:hover { background: var(--accent-hover); }
+
+    #correlation-display {
+      font-size: 13px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+
+    #correlation-display span {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    #compare-chart-container {
+      position: relative;
+      height: 260px;
+      margin-top: 14px;
+      display: none;
+    }
+
+    /* ── Gainers/Losers table ── */
+    #gl-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .gl-section-title {
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .gl-section-title.gainers { color: var(--green); }
+    .gl-section-title.losers  { color: var(--red); }
+
+    .gl-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .gl-table th {
+      text-align: left;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--text-muted);
+      padding: 4px 8px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .gl-table td {
+      padding: 7px 8px;
+      font-size: 13px;
+      border-bottom: 1px solid rgba(46,50,80,0.5);
+    }
+
+    .gl-table tr:last-child td { border-bottom: none; }
+
+    .row-gainer { background: var(--green-bg); color: var(--green); }
+    .row-loser  { background: var(--red-bg);   color: var(--red); }
+
+    .row-gainer td, .row-loser td { color: inherit; }
+
+    /* ── Volatility badge ── */
+    .vol-badge {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+    }
+    .vol-low    { background: rgba(34,197,94,0.15);  color: #22c55e; }
+    .vol-medium { background: rgba(249,115,22,0.15); color: #f97316; }
+    .vol-high   { background: rgba(239,68,68,0.15);  color: #ef4444; }
+
+    /* ── Metrics row ── */
+    #metrics-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .metric-chip {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .metric-chip span { color: var(--text); font-weight: 600; }
+
+    /* ── Correlation heatmap ── */
+    #heatmap-container {
+      overflow-x: auto;
+      margin-top: 4px;
+    }
+    .heatmap-table {
+      border-collapse: collapse;
+      font-size: 12px;
+    }
+    .heatmap-table th, .heatmap-table td {
+      padding: 6px 10px;
+      text-align: center;
+      border: 1px solid var(--border);
+      min-width: 80px;
+    }
+    .heatmap-table th { color: var(--text-muted); font-weight: 600; }
+    /* ── Loading / empty states ── */
+    .loading {
+      color: var(--text-muted);
+      font-size: 13px;
+      padding: 12px 0;
+      text-align: center;
+    }
+
+    @media (max-width: 700px) {
+      #sidebar { width: 160px; min-width: 160px; }
+      #gl-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Sidebar -->
+<aside id="sidebar">
+  <div id="sidebar-header">Companies</div>
+  <div id="company-list"><div class="loading">Loading…</div></div>
+</aside>
+
+<!-- Main content -->
+<div id="main">
+  <div id="topbar">
+    <span id="app-title">📈 Stock Dashboard</span>
+    <span id="selected-symbol"></span>
+    <div id="live-indicator">
+      <span class="live-dot"></span>
+      <span>LIVE</span>
+    </div>
+  </div>
+
+  <div id="content">
+
+    <!-- Price chart card -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="card-title" style="margin-bottom:0;">Price Chart</div>
+        <div id="filter-row">
+          <span class="filter-label">Range:</span>
+          <button class="filter-btn active" data-days="30">30D</button>
+          <button class="filter-btn" data-days="90">90D</button>
+          <button class="filter-btn" data-days="365">1Y</button>
+        </div>
+      </div>
+      <!-- Volatility metrics row -->
+      <div id="metrics-row"></div>
+      <div id="chart-container">
+        <canvas id="price-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Prediction card -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="card-title" style="margin-bottom:0;">Price Prediction (Linear Regression)</div>
+        <div>
+          <span class="filter-label">Predict:</span>
+          <select id="predict-days" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;">
+            <option value="7">7 days</option>
+            <option value="14" selected>14 days</option>
+            <option value="30">30 days</option>
+          </select>
+          <button id="predict-btn" style="margin-left:8px;background:var(--accent);border:none;color:#fff;padding:5px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;">Run</button>
+        </div>
+      </div>
+      <div style="position:relative;height:260px;">
+        <canvas id="predict-chart"></canvas>
+      </div>
+      <div id="predict-note" style="font-size:11px;color:var(--text-muted);margin-top:8px;">Select a company and click Run to generate a prediction.</div>
+    </div>
+
+    <!-- Compare card -->
+    <div class="card">
+      <div class="card-title">Compare Stocks</div>
+      <div id="compare-row">
+        <select id="compare-sym1" class="compare-select"></select>
+        <span style="color:var(--text-muted);font-size:13px;">vs</span>
+        <select id="compare-sym2" class="compare-select"></select>
+        <button id="compare-btn">Compare</button>
+      </div>
+      <div id="correlation-display" style="display:none;">
+        Correlation: <span id="corr-value">—</span>
+      </div>
+      <div id="compare-chart-container">
+        <canvas id="compare-chart"></canvas>
+      </div>
+    </div>
+
+    <!-- Gainers / Losers card -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="card-title" style="margin-bottom:0;">Top Gainers &amp; Losers</div>
+        <div id="gl-filter-row">
+          <span class="filter-label">Period:</span>
+          <button class="filter-btn gl-filter-btn" data-days="1">1D</button>
+          <button class="filter-btn gl-filter-btn" data-days="7">1W</button>
+          <button class="filter-btn gl-filter-btn active" data-days="30">1M</button>
+          <button class="filter-btn gl-filter-btn" data-days="90">3M</button>
+          <button class="filter-btn gl-filter-btn" data-days="365">1Y</button>
+        </div>
+      </div>
+      <div id="gl-grid">
+        <div>
+          <div class="gl-section-title gainers">▲ Gainers</div>
+          <table class="gl-table" id="gainers-table">
+            <thead><tr><th>Symbol</th><th>Avg Return</th><th>Last Close</th></tr></thead>
+            <tbody><tr><td colspan="3" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <div>
+          <div class="gl-section-title losers">▼ Losers</div>
+          <table class="gl-table" id="losers-table">
+            <thead><tr><th>Symbol</th><th>Avg Return</th><th>Last Close</th></tr></thead>
+            <tbody><tr><td colspan="3" class="loading">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Correlation Heatmap card -->
+    <div class="card">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+        <div class="card-title" style="margin-bottom:0;">Correlation Heatmap</div>
+        <select id="heatmap-days" style="background:var(--surface2);border:1px solid var(--border);color:var(--text);padding:4px 8px;border-radius:6px;font-size:12px;">
+          <option value="30">30D</option>
+          <option value="90" selected>90D</option>
+          <option value="365">1Y</option>
+        </select>
+      </div>
+      <div id="heatmap-container"><div class="loading">Loading…</div></div>
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /main -->
+
+<script>
+  // ── State ──────────────────────────────────────────────────────────────────
+  let currentSymbol = null;
+  let currentDays   = 30;
+  let glDays        = 30;
+  let priceChart    = null;
+  let compareChart  = null;
+  let companies     = [];
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  const $ = id => document.getElementById(id);
+
+  function fmtPct(v) {
+    if (v == null) return '—';
+    return (v * 100).toFixed(3) + '%';
+  }
+
+  function fmtPrice(v) {
+    if (v == null) return '—';
+    return Number(v).toFixed(2);
+  }
+
+  // ── Fetch companies ────────────────────────────────────────────────────────
+  async function loadCompanies() {
+    try {
+      const res = await fetch('/companies');
+      if (!res.ok) throw new Error('Failed to fetch companies');
+      companies = await res.json();
+      renderSidebar(companies);
+      populateCompareDropdowns(companies);
+      if (companies.length > 0) {
+        selectCompany(companies[0].symbol);
+      }
+    } catch (err) {
+      $('company-list').innerHTML = '<div class="loading">Error loading companies</div>';
+      console.error(err);
+    }
+  }
+
+  // ── Sidebar ────────────────────────────────────────────────────────────────
+  function renderSidebar(list) {
+    const container = $('company-list');
+    if (!list.length) {
+      container.innerHTML = '<div class="loading">No companies found</div>';
+      return;
+    }
+    container.innerHTML = list.map(c =>
+      `<div class="company-item" data-symbol="${c.symbol}">${c.symbol}</div>`
+    ).join('');
+
+    container.querySelectorAll('.company-item').forEach(el => {
+      el.addEventListener('click', () => selectCompany(el.dataset.symbol));
+    });
+  }
+
+  function setActiveSidebarItem(symbol) {
+    document.querySelectorAll('.company-item').forEach(el => {
+      el.classList.toggle('active', el.dataset.symbol === symbol);
+    });
+  }
+
+  // ── Company selection ──────────────────────────────────────────────────────
+  function selectCompany(symbol) {
+    currentSymbol = symbol;
+    $('selected-symbol').textContent = symbol;
+    setActiveSidebarItem(symbol);
+    loadPriceChart(symbol, currentDays);
+    loadVolatility(symbol);
+  }
+
+  // ── Price chart ────────────────────────────────────────────────────────────
+  async function loadPriceChart(symbol, days) {
+    try {
+      const res = await fetch(`/data/${symbol}?days=${days}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const records = await res.json();
+      renderPriceChart(symbol, records);
+    } catch (err) {
+      console.error('Price chart error:', err);
+    }
+  }
+
+  function renderPriceChart(symbol, records) {
+    const labels = records.map(r => r.date);
+    const closes = records.map(r => r.close);
+    const ma7    = records.map(r => r.ma_7);
+
+    if (priceChart) priceChart.destroy();
+
+    const ctx = $('price-chart').getContext('2d');
+    priceChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          {
+            label: 'Close Price',
+            data: closes,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.08)',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: true,
+          },
+          {
+            label: '7-Day MA',
+            data: ma7,
+            borderColor: '#f97316',
+            borderWidth: 2,
+            borderDash: [6, 3],
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            labels: { color: '#8892a4', font: { size: 12 } },
+          },
+          tooltip: {
+            backgroundColor: '#1a1d27',
+            borderColor: '#2e3250',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#8892a4',
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${fmtPrice(ctx.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: '#8892a4', maxTicksLimit: 8, font: { size: 11 } },
+            grid: { color: 'rgba(46,50,80,0.5)' },
+          },
+          y: {
+            ticks: { color: '#8892a4', font: { size: 11 } },
+            grid: { color: 'rgba(46,50,80,0.5)' },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Time-range filter buttons ──────────────────────────────────────────────
+  document.querySelectorAll('.filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentDays = parseInt(btn.dataset.days, 10);
+      if (currentSymbol) loadPriceChart(currentSymbol, currentDays);
+    });
+  });
+
+  // ── Compare dropdowns ──────────────────────────────────────────────────────
+  function populateCompareDropdowns(list) {
+    const opts = list.map(c => `<option value="${c.symbol}">${c.symbol}</option>`).join('');
+    $('compare-sym1').innerHTML = opts;
+    $('compare-sym2').innerHTML = opts;
+    // Default second selection to second company if available
+    if (list.length > 1) $('compare-sym2').value = list[1].symbol;
+  }
+
+  $('compare-btn').addEventListener('click', async () => {
+    const s1 = $('compare-sym1').value;
+    const s2 = $('compare-sym2').value;
+    if (!s1 || !s2) return;
+    if (s1 === s2) {
+      alert('Please select two different symbols to compare.');
+      return;
+    }
+    try {
+      const res = await fetch(`/compare?symbol1=${s1}&symbol2=${s2}&days=${currentDays}`);
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.detail || 'Compare failed');
+        return;
+      }
+      const data = await res.json();
+      renderCompareChart(s1, s2, data);
+    } catch (err) {
+      console.error('Compare error:', err);
+    }
+  });
+
+  function renderCompareChart(s1, s2, data) {
+    const container = $('compare-chart-container');
+    container.style.display = 'block';
+
+    const corrEl = $('correlation-display');
+    corrEl.style.display = 'block';
+    $('corr-value').textContent = Number(data.correlation).toFixed(4);
+
+    const labels1 = data.records1.map(r => r.date);
+    const labels2 = data.records2.map(r => r.date);
+    // Use union of dates as labels
+    const allDates = [...new Set([...labels1, ...labels2])].sort();
+
+    const map1 = Object.fromEntries(data.records1.map(r => [r.date, r.close]));
+    const map2 = Object.fromEntries(data.records2.map(r => [r.date, r.close]));
+
+    if (compareChart) compareChart.destroy();
+
+    const ctx = $('compare-chart').getContext('2d');
+    compareChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: allDates,
+        datasets: [
+          {
+            label: s1 + ' Close',
+            data: allDates.map(d => map1[d] ?? null),
+            borderColor: '#3b82f6',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false,
+            spanGaps: true,
+          },
+          {
+            label: s2 + ' Close',
+            data: allDates.map(d => map2[d] ?? null),
+            borderColor: '#22c55e',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: false,
+            spanGaps: true,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#8892a4', font: { size: 12 } } },
+          tooltip: {
+            backgroundColor: '#1a1d27',
+            borderColor: '#2e3250',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#8892a4',
+            callbacks: {
+              label: ctx => ` ${ctx.dataset.label}: ${fmtPrice(ctx.parsed.y)}`,
+            },
+          },
+        },
+        scales: {
+          x: {
+            ticks: { color: '#8892a4', maxTicksLimit: 8, font: { size: 11 } },
+            grid: { color: 'rgba(46,50,80,0.5)' },
+          },
+          y: {
+            ticks: { color: '#8892a4', font: { size: 11 } },
+            grid: { color: 'rgba(46,50,80,0.5)' },
+          },
+        },
+      },
+    });
+  }
+
+  // ── Gainers / Losers period filter buttons ────────────────────────────────
+  document.querySelectorAll('.gl-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.gl-filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      glDays = parseInt(btn.dataset.days, 10);
+      loadGainersLosers();
+    });
+  });
+
+  // ── Gainers / Losers ───────────────────────────────────────────────────────
+  async function loadGainersLosers() {
+    try {
+      const res = await fetch(`/gainers-losers?days=${glDays}&top_n=5`);
+      if (!res.ok) throw new Error('Failed to fetch gainers-losers');
+      const data = await res.json();
+      renderGLTable('gainers-table', data.gainers, 'row-gainer');
+      renderGLTable('losers-table',  data.losers,  'row-loser');
+    } catch (err) {
+      console.error('Gainers/losers error:', err);
+    }
+  }
+
+  function renderGLTable(tableId, entries, rowClass) {
+    const tbody = document.querySelector(`#${tableId} tbody`);
+    if (!entries || !entries.length) {
+      tbody.innerHTML = '<tr><td colspan="3" class="loading">No data</td></tr>';
+      return;
+    }
+    tbody.innerHTML = entries.map(e =>
+      `<tr class="${rowClass}">
+        <td><strong>${e.symbol}</strong></td>
+        <td>${fmtPct(e.avg_daily_return)}</td>
+        <td>${fmtPrice(e.latest_close)}</td>
+      </tr>`
+    ).join('');
+  }
+
+  $('heatmap-days').addEventListener('change', () => {
+    const days = parseInt($('heatmap-days').value, 10);
+    fetch(`/correlation-matrix?days=${days}`).then(r => r.json()).then(renderHeatmap);
+  });
+
+  // ── Init ───────────────────────────────────────────────────────────────────
+  loadCompanies();
+  loadGainersLosers();
+  loadCorrelationMatrix();
+
+  // ── Prediction ────────────────────────────────────────────────────────────
+  let predictChart = null;
+
+  $('predict-btn').addEventListener('click', () => {
+    if (!currentSymbol) return;
+    const daysAhead = parseInt($('predict-days').value, 10);
+    loadPrediction(currentSymbol, daysAhead);
+  });
+
+  async function loadPrediction(symbol, daysAhead) {
+    $('predict-note').textContent = 'Running model…';
+    try {
+      const res = await fetch(`/predict/${symbol}?days_history=90&days_ahead=${daysAhead}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      renderPredictChart(data);
+    } catch (err) {
+      $('predict-note').textContent = 'Prediction failed.';
+      console.error(err);
+    }
+  }
+
+  function renderPredictChart(data) {
+    const allDates = [...data.historical_dates, ...data.prediction_dates];
+    const historicalData = data.historical_closes.map((v, i) => ({ x: data.historical_dates[i], y: v }));
+    const predData = data.prediction_dates.map((d, i) => ({ x: d, y: data.prediction_closes[i] }));
+
+    // Connector: last historical point + first prediction point
+    const connector = [
+      { x: data.historical_dates[data.historical_dates.length - 1], y: data.historical_closes[data.historical_closes.length - 1] },
+      { x: data.prediction_dates[0], y: data.prediction_closes[0] },
+    ];
+
+    if (predictChart) predictChart.destroy();
+    const ctx = $('predict-chart').getContext('2d');
+    predictChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        datasets: [
+          {
+            label: 'Historical Close',
+            data: historicalData,
+            borderColor: '#3b82f6',
+            backgroundColor: 'rgba(59,130,246,0.06)',
+            borderWidth: 2,
+            pointRadius: 0,
+            tension: 0.3,
+            fill: true,
+            parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+          },
+          {
+            label: 'Predicted Close',
+            data: predData,
+            borderColor: '#a855f7',
+            borderWidth: 2,
+            borderDash: [5, 4],
+            pointRadius: 3,
+            pointBackgroundColor: '#a855f7',
+            tension: 0.3,
+            fill: false,
+            parsing: { xAxisKey: 'x', yAxisKey: 'y' },
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { labels: { color: '#8892a4', font: { size: 12 } } },
+          tooltip: {
+            backgroundColor: '#1a1d27',
+            borderColor: '#2e3250',
+            borderWidth: 1,
+            titleColor: '#e2e8f0',
+            bodyColor: '#8892a4',
+          },
+        },
+        scales: {
+          x: { type: 'category', ticks: { color: '#8892a4', maxTicksLimit: 8, font: { size: 11 } }, grid: { color: 'rgba(46,50,80,0.5)' } },
+          y: { ticks: { color: '#8892a4', font: { size: 11 } }, grid: { color: 'rgba(46,50,80,0.5)' } },
+        },
+      },
+    });
+    $('predict-note').textContent = `Model: ${data.model} | Trend slope: ${data.daily_slope > 0 ? '+' : ''}${data.daily_slope} | Volatility: ${(data.volatility * 100).toFixed(3)}% | Predicting ${data.prediction_dates.length} trading days ahead`;
+  }
+
+  // ── Volatility metrics ────────────────────────────────────────────────────
+  async function loadVolatility(symbol) {
+    try {
+      const res = await fetch(`/volatility/${symbol}?days=90`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const riskClass = { Low: 'vol-low', Medium: 'vol-medium', High: 'vol-high' }[data.risk_label] || 'vol-medium';
+      $('metrics-row').innerHTML = `
+        <div class="metric-chip">Avg Volatility: <span>${(data.avg_volatility * 100).toFixed(3)}%</span></div>
+        <div class="metric-chip">Avg Daily Return: <span>${(data.avg_daily_return * 100).toFixed(3)}%</span></div>
+        <div class="metric-chip">Risk: <span class="vol-badge ${riskClass}">${data.risk_label}</span></div>
+      `;
+    } catch (err) {
+      console.error('Volatility error:', err);
+    }
+  }
+
+  // ── Correlation heatmap ───────────────────────────────────────────────────
+  async function loadCorrelationMatrix() {
+    try {
+      const res = await fetch('/correlation-matrix?days=90');
+      if (!res.ok) return;
+      const data = await res.json();
+      renderHeatmap(data);
+    } catch (err) {
+      console.error('Correlation matrix error:', err);
+    }
+  }
+
+  function corrColor(v) {
+    // -1 = red, 0 = neutral, +1 = green
+    if (v >= 0.7)  return 'rgba(34,197,94,0.5)';
+    if (v >= 0.3)  return 'rgba(34,197,94,0.2)';
+    if (v >= -0.3) return 'rgba(100,116,139,0.15)';
+    if (v >= -0.7) return 'rgba(239,68,68,0.2)';
+    return 'rgba(239,68,68,0.5)';
+  }
+
+  function renderHeatmap(data) {
+    const container = $('heatmap-container');
+    if (!data.symbols.length) { container.innerHTML = '<div class="loading">No data</div>'; return; }
+    let html = '<table class="heatmap-table"><thead><tr><th></th>';
+    data.symbols.forEach(s => { html += `<th>${s}</th>`; });
+    html += '</tr></thead><tbody>';
+    data.matrix.forEach((row, i) => {
+      html += `<tr><th>${data.symbols[i]}</th>`;
+      row.forEach(v => {
+        const bg = corrColor(v);
+        const color = Math.abs(v) > 0.5 ? '#e2e8f0' : '#8892a4';
+        html += `<td style="background:${bg};color:${color}">${v.toFixed(2)}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+</script>
+</body>
+</html>
