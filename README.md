@@ -7,7 +7,7 @@ A mini financial data platform built with FastAPI. It fetches real OHLCV stock d
 
  Render : https://stock-data-dashboard-system.onrender.com
  
- Render Fast Load: https://stock-data-dashboard-system.onrender.com/static/index.html
+ Direct Dashboard Load: https://stock-data-dashboard-system.onrender.com/static/index.html
  
 ## Features
 
