@@ -19,7 +19,7 @@ A mini financial data platform built with FastAPI. It fetches real OHLCV stock d
 - **SQLite** (default) or **PostgreSQL** via env var
 
 ---
-|                                                               |
+
 |:-------------------------------------------------------------:|
 |                         **Dashboard**                         |
 ---
