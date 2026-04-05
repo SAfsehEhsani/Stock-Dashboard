@@ -21,7 +21,7 @@ A mini financial data platform built with FastAPI. It fetches real OHLCV stock d
 ---
 | | | | |
 |:---:|:---:|:---:|:---:|
-| ![Dashboard](Stocks Dashboard.jpeg) |
+| ![Dashboard](StocksDashboard.jpeg) |
 | *Dashboard* |
 
 ## Quick Start
