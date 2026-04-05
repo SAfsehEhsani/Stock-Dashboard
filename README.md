@@ -19,13 +19,13 @@ A mini financial data platform built with FastAPI. It fetches real OHLCV stock d
 - **SQLite** (default) or **PostgreSQL** via env var
 
 ---
+## Dashboard Images    
 
-|:-------------------------------------------------------------:|
-|                         **Dashboard**                         |
 <p align ="center">
 <img src ="StocksDashboard.jpeg" alt="Dashboard" height="800" width="800">
 </p>
 ---
+
 ## Quick Start
 
 ### 1. Clone and install
@@ -51,7 +51,7 @@ uvicorn main:app --reload
 
 The app starts at **http://localhost:8000**.
 
-- Dashboard: http://localhost:8000/
+- Dashboard: https://stock-data-dashboard-system.onrender.com/static/index.html
 - Swagger UI: http://localhost:8000/docs
 
 On startup, data ingestion runs automatically in the background for the symbols listed in `SYMBOLS` (if `INGEST_ON_STARTUP=true`).
