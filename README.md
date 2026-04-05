@@ -175,6 +175,7 @@ These are features planned for future development:
 
 ### Infrastructure
 - **PostgreSQL migration guide** — step-by-step switch from SQLite to Postgres for production
-- **Docker support** — `Dockerfile` and `docker-compose.yml` for one-command local setup
+- **Deploy support on Render** — `Render` and `requirements` for one-command local setup
 - **Scheduled auto-refresh** — cron-based ingestion to keep data up to date without manual triggers
-- **Authentication** — basic API key or OAuth2 login to protect the dashboard
+
+## Developed By Syed Afseh Ehsani
